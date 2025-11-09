@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Debate Game Teams</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+    .modal-overlay {
+        position: fixed; left: 0; top: 0; width: 100vw; height: 100vh;
+        display: flex; background: rgba(0,0,0,0.5); z-index: 9999;
+        justify-content: center; align-items: center;
+    }
+    .modal-content { background: #fff; border-radius: 16px; padding: 2rem; box-shadow: 0 10px 40px #aaa;
+        display: flex; flex-direction: column; align-items: center;}
+    .modal-content input { margin: 10px auto 20px auto; padding: 7px; font-size: 1.2rem; width: 160px;
+        border-radius: 8px; border: 1px solid #aaa; text-align: center;}
+    .modal-content button { background: #4a7c8c; color: white; font-weight: bold; padding: 8px 35px;
+        border-radius: 50px; border: none; font-size: 1.1rem; cursor: pointer;}
+    .modal-content button:hover { background: #33708c; }
+    </style>
+</head>
+<body>
+    <div id="strengthModal" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <h2>Enter Class Strength</h2>
+            <input type="number" id="classStrengthInput" min="2" placeholder="e.g. 54">
+            <button id="strengthSubmitBtn">Submit</button>
+            <div style="color: red; margin-top:12px; font-size:1rem;" id="popupWarning"></div>
+        </div>
+    </div>
+    <div class="container">
+        <div class="header">
+            <h1 class="game-title">DEBATE GAME</h1>
+            <a href="/scoreboard" target="_blank" class="header-link scoreboard-link">Scoreboard</a>
+            <button id="resetGameBtn" style="margin-left:24px; padding:6px 28px; border-radius:24px; border:none; background:#e74c3c; color:#fff; font-weight:bold;">Reset Game</button>
+        </div>
+        <div class="timer-section">
+            <div class="timer-display" id="timerDisplay">00:00</div>
+            <div class="timer-controls">
+                <button class="timer-btn start" id="startTimerBtn">Start</button>
+                <button class="timer-btn pause" id="pauseTimerBtn">Pause</button>
+                <button class="timer-btn reset" id="resetTimerBtn">Reset</button>
+            </div>
+        </div>
+        <div class="game-layout">
+            <div class="player-section player-1">
+                <h2 class="player-label">Team A</h2>
+                <div class="roll-section">
+                    <p class="roll-label">Roll No.</p>
+                    <div class="roll-display" id="rollNumberA">--</div>
+                </div>
+                <button class="win-btn" id="winBtnA" disabled>Win</button>
+            </div>
+            <div class="topic-section">
+                <div class="laptop">
+                   <div class="laptop-screen">
+                        <div class="topic-display" id="topicDisplay">Enter class strength first!</div>
+                   </div>
+                </div>
+                <button class="new-round-btn" id="startRoundBtn" disabled>Start New Round</button>
+            </div>
+            <div class="player-section player-2">
+                <h2 class="player-label">Team B</h2>
+                <div class="roll-section">
+                    <p class="roll-label">Roll No.</p>
+                    <div class="roll-display green" id="rollNumberB">--</div>
+                </div>
+                <button class="win-btn green" id="winBtnB" disabled>Win</button>
+            </div>
+        </div>
+    </div>
+    <script>
+// ----------- POPUP / STRENGTH -----------
+async function backendStrengthSet() {
+    try {
+        let resp = await fetch("/api/get_strength");
+        let data = await resp.json();
+        return !!data.strength;
+    } catch {
+        return false;
+    }
+}
+async function pageStartup() {
+    let strengthSet = await backendStrengthSet();
+    if (!strengthSet) localStorage.removeItem('debateClassStrengthSet');
+    showStrengthModal(false);
+    setupTimer();
+}
+function showStrengthModal(force) {
+    let alreadySet = localStorage.getItem('debateClassStrengthSet');
+    if (!alreadySet || force) {
+        document.getElementById('strengthModal').style.display = "flex";
+    } else {
+        document.getElementById('strengthModal').style.display = "none";
+        document.getElementById('startRoundBtn').disabled = false;
+    }
+}
+document.addEventListener("DOMContentLoaded", pageStartup);
+
+document.getElementById('strengthSubmitBtn').onclick = async function () {
+    let inp = document.getElementById('classStrengthInput');
+    let warning = document.getElementById('popupWarning');
+    let val = parseInt(inp.value);
+    if (isNaN(val) || val < 2) {
+        warning.textContent = "Please enter a valid number (>=2)";
+        inp.style.borderColor = "#e74c3c"; return;
+    }
+    const res = await fetch('/api/set_strength', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({strength: val})
+    });
+    if (res.ok) {
+        document.getElementById('strengthModal').style.display = "none";
+        document.getElementById('startRoundBtn').disabled = false;
+        warning.textContent = "";
+        document.getElementById('topicDisplay').textContent = "Press Start New Round!";
+        localStorage.setItem('debateClassStrengthSet', '1');
+    } else warning.textContent = "Error: Could not set strength!";
+};
+
+document.getElementById('resetGameBtn').onclick = async function () {
+    await fetch('/api/reset_game', {method: 'POST'});
+    localStorage.removeItem('debateClassStrengthSet');
+    showStrengthModal(true);
+    document.getElementById('rollNumberA').textContent = '--';
+    document.getElementById('rollNumberB').textContent = '--';
+    document.getElementById('topicDisplay').textContent = 'Enter class strength first!';
+    document.getElementById('winBtnA').disabled = true;
+    document.getElementById('winBtnB').disabled = true;
+    document.getElementById('startRoundBtn').disabled = true;
+    resetTimer();
+};
+
+// ----------- ROUND / WIN LOGIC ----------
+document.getElementById("startRoundBtn").onclick = async function () {
+    const res = await fetch('/api/start_round', {method: 'POST'});
+    if (res.ok) {
+        const data = await res.json();
+        document.getElementById('rollNumberA').textContent = data.roll_a;
+        document.getElementById('rollNumberB').textContent = data.roll_b;
+        document.getElementById('topicDisplay').textContent = data.topic;
+        document.getElementById('winBtnA').disabled = false;
+        document.getElementById('winBtnB').disabled = false;
+        resetTimer();
+    }
+};
+
+document.getElementById("winBtnA").onclick = async function () {
+    let rollA = document.getElementById('rollNumberA').textContent;
+    let timer = document.getElementById('timerDisplay').textContent;
+    if (!rollA || rollA === "--") return;
+    const res = await fetch('/api/declare_winner', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({winner_roll: rollA, timer_value: timer})
+    });
+    if (res.ok) {
+        const data = await res.json();
+        document.getElementById('rollNumberA').textContent = data.next_round.roll_a;
+        document.getElementById('rollNumberB').textContent = data.next_round.roll_b;
+        document.getElementById('topicDisplay').textContent = data.next_round.topic;
+        document.getElementById('winBtnA').disabled = false;
+        document.getElementById('winBtnB').disabled = false;
+        resetTimer();
+        confetti();
+    }
+};
+
+document.getElementById("winBtnB").onclick = async function () {
+    let rollB = document.getElementById('rollNumberB').textContent;
+    let timer = document.getElementById('timerDisplay').textContent;
+    if (!rollB || rollB === "--") return;
+    const res = await fetch('/api/declare_winner', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({winner_roll: rollB, timer_value: timer})
+    });
+    if (res.ok) {
+        const data = await res.json();
+        document.getElementById('rollNumberA').textContent = data.next_round.roll_a;
+        document.getElementById('rollNumberB').textContent = data.next_round.roll_b;
+        document.getElementById('topicDisplay').textContent = data.next_round.topic;
+        document.getElementById('winBtnA').disabled = false;
+        document.getElementById('winBtnB').disabled = false;
+        resetTimer();
+        confetti();
+    }
+};
+
+// ----------- TIMER LOGIC ----------
+let timerInterval = null;
+let seconds = 0;
+let isTimerRunning = false;
+
+function setupTimer() {
+    document.getElementById('timerDisplay').textContent = "00:00";
+    document.getElementById('startTimerBtn').onclick = startTimer;
+    document.getElementById('pauseTimerBtn').onclick = pauseTimer;
+    document.getElementById('resetTimerBtn').onclick = resetTimer;
+}
+function formatTime(totalSeconds) {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+function startTimer() {
+    if (!isTimerRunning) {
+        isTimerRunning = true;
+        timerInterval = setInterval(() => {
+            seconds++;
+            document.getElementById('timerDisplay').textContent = formatTime(seconds);
+        }, 1000);
+    }
+}
+function pauseTimer() {
+    isTimerRunning = false;
+    if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+}
+function resetTimer() {
+    pauseTimer();
+    seconds = 0;
+    document.getElementById('timerDisplay').textContent = '00:00';
+}
+
+// ----------- CONFETTI EFFECT ----------
+function confetti() {
+    const colors = ['#5cb85c', '#4a7c8c', '#667eea', '#764ba2', '#f39c12', '#e74c3c'];
+    for (let i = 0; i < 40; i++) {
+        const conf = document.createElement('div');
+        conf.style.position = 'fixed';
+        conf.style.width = '10px';
+        conf.style.height = '10px';
+        conf.style.backgroundColor = colors[Math.floor(Math.random()*colors.length)];
+        conf.style.left = Math.random()*window.innerWidth + 'px';
+        conf.style.top = '-10px';
+        conf.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+        conf.style.pointerEvents = 'none';
+        conf.style.zIndex = '9999';
+        document.body.appendChild(conf);
+        const anim = conf.animate([
+            { transform: 'translateY(0) rotate(0deg)', opacity: 1 },
+            { transform: `translateY(${window.innerHeight}px) rotate(${Math.random()*720}deg)`, opacity: 0 }
+        ], {duration: 1800 + Math.random()*800, easing:'ease-in'});
+        anim.onfinish = () => conf.remove();
+    }
+}
+    </script>
+</body>
+</html>

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Scoreboard - Debate Game</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .scoreboard-page {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 2rem;
+        }
+        .scoreboard-container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+            position: relative;
+        }
+        .nav-buttons {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 2rem;
+            gap: 1rem;
+        }
+        .arena-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem 2rem;
+            background: linear-gradient(135deg, #5cb85c 0%, #4cae4c 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 20px rgba(92, 184, 92, 0.4);
+            position: relative;
+            overflow: hidden;
+        }
+        .arena-link:hover {
+            transform: translateY(-3px); box-shadow: 0 8px 25px rgba(92, 184, 92, 0.5);
+        }
+        .arena-link svg { width: 24px; height: 24px; }
+        .arena-link .button-text { text-shadow: 0 2px 4px rgba(0,0,0,0.1);}
+        .scoreboard-header { text-align: center; margin-bottom: 2rem; }
+        .scoreboard-header h1 { font-size: 2.5rem; color: #2c3e50; margin-bottom: 0.5rem;}
+        .scoreboard-header p { color: #7f8c8d; font-size: 1rem;}
+        .controls {
+            display: flex; justify-content: space-between; margin-bottom: 2rem; gap: 1rem; flex-wrap: wrap;
+        }
+        .refresh-btn, .reset-btn {
+            padding: 0.75rem 1.5rem; border: none; border-radius: 50px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center; gap: 0.5rem; font-size: 1rem;
+        }
+        .refresh-btn {
+            background: linear-gradient(135deg, #4a7c8c 0%, #3a6c7c 100%);
+            color: white; box-shadow: 0 4px 12px rgba(74, 124, 140, 0.3);
+        }
+        .refresh-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(74, 124, 140, 0.4);}
+        .reset-btn {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white; box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+        }
+        .reset-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 16px rgba(231, 76, 60, 0.4);}
+        .scoreboard-table { width: 100%; border-collapse: collapse; margin-top: 1rem;}
+        .scoreboard-table thead { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;}
+        .scoreboard-table th { padding: 1rem; text-align: left; font-weight: 600; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.5px;}
+        .scoreboard-table td { padding: 1rem; border-bottom: 1px solid #e0e0e0; font-size: 1.1rem;}
+        .scoreboard-table tbody tr:hover { background: #f5f7f8;}
+        .rank-cell { font-weight: 700; color: #4a7c8c; font-size: 1.3rem; }
+        .roll-cell { font-weight: 600; color: #2c3e50;}
+        .score-cell { font-weight: 700; font-size: 1.3rem; }
+        .score-high { color: #5cb85c;}
+        .score-medium { color: #f39c12;}
+        .score-low { color: #e74c3c;}
+        .time-cell { font-family: 'Courier New', monospace; color: #7f8c8d;}
+        .empty-state { text-align: center; padding: 3rem; color: #7f8c8d;}
+        .empty-state svg { width: 80px; height: 80px; margin-bottom: 1rem; opacity: 0.3;}
+        @media (max-width: 768px) {
+            .nav-buttons { flex-direction: column; }
+            .arena-link { width: 100%; justify-content: center;}
+            .scoreboard-header h1 { font-size: 2rem;}
+        }
+    </style>
+</head>
+<body>
+    <div class="scoreboard-page">
+        <div class="scoreboard-container">
+            <div class="nav-buttons">
+                <a href="/" target="_blank" class="arena-link">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                        <polyline points="9 22 9 12 15 12 15 22"/>
+                    </svg>
+                    <span class="button-text">Back to Arena</span>
+                </a>
+            </div>
+            <div class="scoreboard-header">
+                <h1>🏆 Debate Competition Scoreboard</h1>
+                <p>Real-time rankings and scores</p>
+            </div>
+            <div class="controls">
+                <button class="refresh-btn" id="refreshBtn">Refresh</button>
+                <button class="reset-btn" id="resetBtn">Reset All Scores</button>
+            </div>
+            <table class="scoreboard-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Roll Number</th>
+                        <th>Score</th>
+                        <th>Last Win Time</th>
+                    </tr>
+                </thead>
+                <tbody id="scoreboardBody">
+                    <tr>
+                        <td colspan="4" class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 11l3 3L22 4"/>
+                                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                            </svg>
+                            <p>No scores yet. Start a debate round to see rankings!</p>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <script>
+        async function loadScoreboard() {
+            try {
+                const response = await fetch('/api/get_scoreboard');
+                const data = await response.json();
+                const tbody = document.getElementById('scoreboardBody');
+                if (data.scoreboard.length === 0) {
+                    tbody.innerHTML = `<tr>
+                            <td colspan="4" class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+                                </svg><p>No scores yet. Start a debate round to see rankings!</p>
+                            </td></tr>`;
+                    return;
+                }
+                tbody.innerHTML = '';
+                data.scoreboard.forEach((student, index) => {
+                    const rank = index + 1;
+                    let scoreClass = 'score-low';
+                    if (student.score >= 5) scoreClass = 'score-high';
+                    else if (student.score >= 3) scoreClass = 'score-medium';
+                    const row = document.createElement('tr');
+                    row.innerHTML = `<td class="rank-cell">#${rank}</td>
+                        <td class="roll-cell">Roll ${student.roll_number}</td>
+                        <td class="score-cell ${scoreClass}">${student.score}</td>
+                        <td class="time-cell">${student.last_time}</td>`;
+                    tbody.appendChild(row);
+                });
+            } catch (error) { }
+        }
+        async function resetGame() {
+            if (!confirm('Are you sure you want to reset all scores? This cannot be undone!')) return;
+            await fetch('/api/reset_game', {method: 'POST'});
+            loadScoreboard();
+            alert('All scores have been reset!');
+        }
+        document.getElementById('refreshBtn').addEventListener('click', loadScoreboard);
+        document.getElementById('resetBtn').addEventListener('click', resetGame);
+        setInterval(loadScoreboard, 3000);
+        loadScoreboard();
+    </script>
+</body>
+</html>
